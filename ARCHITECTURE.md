@@ -1,6 +1,6 @@
 # API Gate — Architecture
 
-**Status:** Phase 1 (design only). Nothing in this document has been implemented or verified in CI yet.
+**Status:** Design plus Phases 2–5 implemented. What has and has not been verified on GitHub is recorded in [§17](#17-final-verification-2026-10-15); statements elsewhere in this document that predate that evidence are design intent, not proof.
 **Research date:** 2026-10-15
 **Legend:** ✅ supported by official docs read on the research date · ⚠️ UNVERIFIED (docs did not state it; must be proven in a later phase) · 🔧 manual GitHub setting (not enforced by YAML) · ➕ optional
 
@@ -162,11 +162,11 @@ Contract helpers in `tests/helpers.ts` (`expectValidOrder`, `expectError`) asser
 
 Implemented in [.github/workflows/ci.yml](.github/workflows/ci.yml) (Phase 4). Job id `quality-gate`, display name **`API Quality Gate`** (the string branch protection must require). Step order: checkout → setup-node (version from `.nvmrc`, npm cache) → `npm ci` → `npm run typecheck` → `npm run build` → start API in background (`node dist/server.js > api.log`, PID in `api.pid`) → readiness loop → `npm run test:api` → require `reports/junit.xml` (only when all prior steps succeeded) → print `api.log` (`if: failure()`) → upload artifact (`if: !cancelled()`) → stop API (`if: always()`).
 
-Actions are pinned to commit SHAs (checkout v7.0.1, setup-node v7.1.0, upload-artifact v7.0.2; all run on node24). `.github/dependabot.yml` keeps them current. **Linux/GitHub behaviour of this workflow is NOT VERIFIED until a run is observed.**
+Actions are pinned to commit SHAs (checkout v7.0.1, setup-node v7.1.0, upload-artifact v7.0.2; all run on node24). `.github/dependabot.yml` keeps them current. Verified GitHub behaviour is recorded in §17.
 
 Design choices:
 - **Triggers:** PRs to `main`, pushes to `main`, manual. Feature-branch pushes are covered by their PR, avoiding duplicate runs. **No `paths:` filters** — a required check from a workflow that never ran stays "Expected"/pending and blocks PRs forever.
-- **One job for build + start + test.** Processes do not survive across jobs (separate runners). ⚠️ That a backgrounded process survives across *steps* of the same job is standard but must be confirmed in Phase 4; fallback is a single step with `trap … EXIT` cleanup.
+- **One job for build + start + test.** Processes do not survive across jobs (separate runners). Confirmed on GitHub (§17): the background API survives from the start step to the readiness and test steps.
 - **Readiness:** wall-clock deadline of 30 s (a plain attempt counter took 114 s on Windows, where refused connections are slow) polling `/health` with `curl --max-time 2`; each iteration first checks the saved PID is alive (a crash fails in ~1 s with `api.log` printed, not after 30 s); timeout also prints `api.log` and exits 1.
 - **Failure propagation:** no `continue-on-error`, no `|| true` except on the best-effort `kill`. `upload-artifact` uses `!cancelled()` (not `always()`) so a cancelled run doesn't hang on uploads; the earlier failed step still determines the job result. Upload failure is a *new* failure; it can never turn a red job green.
 - **Concurrency:** PR runs for the same ref cancel superseded runs; `main` runs never cancel so deploy decisions are not lost mid-flight.
@@ -240,19 +240,19 @@ Set `PORT` for the API and the same host/port in `API_BASE_URL` for the tests to
 
 Estimated run time ~1 minute ⇒ negligible against any quota.
 
-## 14. Acceptance criteria (all NOT VERIFIED at Phase 1)
+## 14. Acceptance criteria (status as of 2026-10-15; details and evidence in §17)
 
-- [ ] `npm ci`, build, start, and tests run locally from documented commands
-- [ ] Passing run exits 0; an injected failing assertion exits non-zero (Vitest)
-- [ ] CI runs on PR, push to main, manual dispatch
-- [ ] Readiness is bounded; startup crash and timeout fail the job with `api.log`
-- [ ] Reports uploaded after a failed run (screenshot of artifact on a red run)
-- [ ] Real red run: gate job red, deploy skipped
-- [ ] Real green run: deploy (simulated) executes
-- [ ] Cancelled run: deploy skipped
-- [ ] Branch protection configured and a PR with a red check shown as non-mergeable
-- [ ] README distinguishes CI failure, merge blocking, deployment blocking
-- [ ] No fabricated test counts or coverage numbers anywhere
+- [x] `npm ci`, build, start, and tests run locally from documented commands — VERIFIED locally
+- [x] Passing run exits 0; a failing assertion/regression exits non-zero (Vitest) — VERIFIED locally and on GitHub
+- [~] CI runs on PR, push to main, manual dispatch — PR and push VERIFIED; manual dispatch NOT TESTED
+- [~] Readiness is bounded; startup crash and timeout fail the job with `api.log` — startup crash VERIFIED on GitHub; readiness timeout VERIFIED LOCALLY ONLY
+- [~] Reports uploaded after a failed run — artifact upload VERIFIED on a red run (existence and size); contents NOT INSPECTED
+- [~] Real red run: gate job red, deploy skipped — gate job red VERIFIED; there is NO deploy job, so "deploy skipped" is NOT IMPLEMENTED / NOT VERIFIED
+- [ ] Real green run: deploy (simulated) executes — NOT IMPLEMENTED (no deploy job exists)
+- [ ] Cancelled run: deploy skipped — NOT TESTED
+- [~] Branch protection configured and a PR with a red check shown as non-mergeable — ruleset configured and its contents VERIFIED via GitHub's API; blocking behaviour on a red PR NOT TESTED
+- [ ] README distinguishes CI failure, merge blocking, deployment blocking — no README yet
+- [x] No fabricated test counts or coverage numbers anywhere
 
 ## 15. Risks and trade-offs
 
@@ -291,3 +291,33 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 - Security hardening: https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
 
 **Not confirmed from the pages read (carried as ⚠️):** Postman CLI explicit exit code on failed assertions and its install/CI terms; Bruno exit codes and paid-feature limits; branch protection/rulesets on Free public repos; default `timeout-minutes`; public-repo artifact storage limits.
+
+---
+
+## 17. Final verification (2026-10-15)
+
+Legend: **VERIFIED** = observed on GitHub (API or pasted log); **LOCAL** = Windows/Git Bash only; **NOT TESTED** = not exercised.
+
+**Workflow:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml); single required job `API Quality Gate`; triggers: pull requests to `main`, pushes to `main`, manual dispatch.
+
+| Scenario | Commit | GitHub run | Result |
+|---|---|---|---|
+| Initial push to `main` | `e4a70fc` | [38672309662](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38672309662) | success; **79/79 tests passed** (from the run's test log); artifact uploaded |
+| Regression: create returns 200 not 201 ([PR #1](https://github.com/edzarquiza/api-gate-automated-testing/pull/1), closed unmerged) | `6a27ea7` | [38672991054](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38672991054) | **failure** at "Run API tests"; log reported 42 failed tests; "Require JUnit report" skipped, "Print API log" and artifact upload ran |
+| Recovery of the above | `efaac92` | [38673153813](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38673153813) | success |
+| Startup crash: server throws before listening ([PR #2](https://github.com/edzarquiza/api-gate-automated-testing/pull/2), closed unmerged) | `d7c061f` | [38673760588](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38673760588) | **failure** at "Wait for API readiness" after about 1 s, annotation "API process exited before becoming ready"; tests skipped; log printed; artifact uploaded (462 bytes) |
+| Recovery of the above | `6b72423` | [38674236917](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38674236917) | success |
+
+Both experiment branches were restored to trees identical to `main`, and the PRs were closed without merging. The branches are kept as history.
+
+**Artifacts and reports:** artifact `api-gate-diagnostics-<attempt>` (14-day retention) was uploaded on every run above, including both failures. Sizes: about 2.5 kB on green runs (JUnit + log), 3.8 kB on the regression run, 462 bytes on the startup-crash run, which is consistent with a log-only artifact. **Artifact contents were not inspected** (download requires sign-in). "79 passed" was read from the log only for the initial run; the recovery runs' steps passed but their counts were not read. Locally, `npm ci`, typecheck, build and the suite give 79/79.
+
+**Also verified on GitHub:** the background API process survives between steps; cleanup runs after failures without masking them.
+
+**Branch protection:** ruleset "Protect main" (id 25135341) is active, targets the default branch, and, per GitHub's API, applies: restrict deletions, block force pushes, require a pull request (0 approvals), and require status check **`API Quality Gate`** (the exact job name in the workflow; integration 15368). No other check is required and there is no deployment job. Bypass actors are not visible through the public API. **Not tested:** that GitHub actually refuses to merge a PR whose check is red. The experiment PRs were created before the ruleset existed, and no new failing PR was created for this purpose.
+
+**Not implemented:** the deployment gate. No deploy job exists, so the claim "a failed gate prevents deployment" is design intent only (see §9) and has not been demonstrated.
+
+**Not tested on GitHub:** readiness timeout (local simulation only: bounded at 34 s); cancelled runs and PR concurrency cancellation; graceful server shutdown on Linux (`SIGTERM` handler); manual `workflow_dispatch`; fork pull requests; behaviour when `npm ci` fails. `runs-on: ubuntu-latest` is unpinned, and GitHub announced it moves to Ubuntu 26 from 2026-10-19.
+
+**Known test-design trade-off:** a regression in the create endpoint's status fails about 42 tests (most through the shared setup helper), not one.
