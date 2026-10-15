@@ -1,0 +1,26 @@
+{
+  "name": "api-gate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sample order API used as a target for automated API tests and CI quality gates",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tests",
+    "test:api": "vitest run",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}
