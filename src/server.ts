@@ -9,6 +9,8 @@ if (!Number.isInteger(PORT) || PORT < 0 || PORT > 65535) {
   process.exit(1);
 }
 
+throw new Error("INTENTIONAL STARTUP CRASH (Phase 5C experiment, do not merge)");
+
 const server = createApp().listen(PORT, HOST, () => {
   console.log(`API listening on http://${HOST}:${PORT}`);
 });
