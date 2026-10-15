@@ -30,6 +30,16 @@ The workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs a si
 
 A failing step fails the job; nothing in the workflow hides a failure. The `main` ruleset lists `API Quality Gate` as a required check (confirmed through GitHub's API). Blocking a merge on a red check has not been independently tested.
 
+### What it looks like
+
+**Failing gate.** An intentional regression (`POST /api/orders` returning 200 instead of 201) on a throwaway branch. The test step fails, the report check is skipped, and the log and artifact steps still run ([run 38672991054](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38672991054)):
+
+![Failed API Quality Gate run: the "Run API tests" step is red](docs/images/ci-failed.png)
+
+**Passing gate.** The final run on `main`, with all 79 tests passing ([run 38688103670](https://github.com/edzarquiza/api-gate-automated-testing/actions/runs/38688103670)):
+
+![Passing API Quality Gate run: 79 tests passed](docs/images/ci-passed.png)
+
 ## Run locally
 
 Requires Node.js 24 (see `.nvmrc`).
