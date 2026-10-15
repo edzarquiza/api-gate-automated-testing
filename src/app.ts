@@ -52,7 +52,7 @@ export function createApp() {
 
   app.post("/api/orders", (req, res) => {
     const input = parseBody(createOrderSchema, req.body);
-    res.status(200).json(store.create(input));
+    res.status(201).json(store.create(input));
   });
 
   app.patch("/api/orders/:id", (req, res) => {
